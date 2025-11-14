@@ -335,6 +335,12 @@ class TradingBot:
         self.trading_enabled = True
         logger.info("▶️ Trading resumed")
     
+    def stop_bot(self):
+        """Stop the entire bot (not just pause trading)"""
+        logger.info("🛑 Stop command received")
+        self.running = False
+        self.trading_enabled = False
+    
     def get_status(self) -> str:
         """Get bot status"""
         status_emoji = "▶️" if self.trading_enabled else "⏸️"

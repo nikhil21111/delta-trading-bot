@@ -343,8 +343,9 @@ class TelegramNotifier:
             "/balance - Check account balance\n"
             "/positions - View open positions\n"
             "/stats - Trading statistics\n"
-            "/pause - Pause trading\n"
+            "/pause - Pause trading (no new trades)\n"
             "/resume - Resume trading\n"
+            "/stop - Stop bot completely\n"
             "/emergency - Close all positions\n"
             "/help - Show this message\n\n"
             "Bot is ready! 🚀"
@@ -352,8 +353,16 @@ class TelegramNotifier:
         await update.message.reply_text(message, parse_mode='HTML')
 
     async def _cmd_stop(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stop command - Stop the bot (alias for pause)"""
-        await self._cmd_pause(update, context)
+        """Handle /stop command - Stop the bot completely"""
+        if not self._is_authorized(update):
+            await update.message.reply_text("⛔ Unauthorized")
+            return
+
+        if self.bot_controller:
+            self.bot_controller.stop_bot()
+            await update.message.reply_text("🛑 <b>Bot Stopped</b>\n\nThe bot will shut down gracefully.\nAll positions will be closed.", parse_mode='HTML')
+        else:
+            await update.message.reply_text("❌ Bot controller not available")
 
     async def _cmd_pause(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /pause command - Pause trading"""
