@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: delta-trading-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    
+    envVars:
+      - key: PRODUCTION
+        value: true
+      - key: DELTA_API_KEY
+        sync: false
+      - key: DELTA_API_SECRET
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: TELEGRAM_BOT_TOKENS_EXTRA
+        sync: false
+      - key: TELEGRAM_CHAT_IDS_EXTRA
+        sync: false
+      - key: INITIAL_CAPITAL
+        value: 5.0
+      - key: LEVERAGE
+        value: 10
+      - key: RISK_PERCENTAGE
+        value: 3.0
+      - key: TRADING_PAIR
+        value: ETHUSD
+    
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

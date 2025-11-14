@@ -1,0 +1,51 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment files
+.env
+.env.local
+
+# Git
+.git/
+.gitignore
+
+# Database files (will be stored in volume)
+*.db
+*.db-journal
+
+# Log files (will be stored in volume)
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation (not needed in container)
+*.md
+DEPLOYMENT.md
+README.md
+QUICK_START.md
+
+# Test files
+test_*.py
+
+# Backtest results
+backtest_results/
+*.png
+
+# Windows files
+Thumbs.db
+desktop.ini
+
+# PowerShell
+*.ps1
+
+# Temporary files
+*.tmp
+*.temp
