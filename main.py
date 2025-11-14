@@ -490,17 +490,22 @@ async def main():
         print("Valid modes: LIVE, PAPER, BACKTEST")
         return
 
-    # Confirm live trading
+    # Confirm live trading (skip confirmation in production mode)
     if mode == 'LIVE':
         print("\n⚠️  WARNING: You are about to start LIVE trading with real money!")
         print(f"   Capital: ${config.INITIAL_CAPITAL}")
         print(f"   Leverage: {config.LEVERAGE}x")
         print(f"   Risk: {config.RISK_PERCENTAGE}% per trade\n")
 
-        confirm = input("Type 'YES' to confirm: ").strip()
-        if confirm != 'YES':
-            print("Live trading cancelled")
-            return
+        # Auto-confirm in production (cloud deployment)
+        if config.PRODUCTION:
+            print("Production mode detected - starting automatically...")
+            logger.info("Live trading started in production mode")
+        else:
+            confirm = input("Type 'YES' to confirm: ").strip()
+            if confirm != 'YES':
+                print("Live trading cancelled")
+                return
 
     # Create and run bot
     bot = TradingBot(mode=mode)
