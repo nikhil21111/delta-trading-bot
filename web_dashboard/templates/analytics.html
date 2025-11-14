@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+
+{% block title %}Analytics - Trading Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="row g-3">
+        <!-- Performance Metrics -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Performance Metrics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="performance-metrics">
+                        <div class="col-md-3 text-center p-3">
+                            <h6 class="text-muted">Total Trades</h6>
+                            <h3 class="mb-0" id="metric-total-trades">0</h3>
+                        </div>
+                        <div class="col-md-3 text-center p-3">
+                            <h6 class="text-muted">Win Rate</h6>
+                            <h3 class="mb-0" id="metric-win-rate">0%</h3>
+                        </div>
+                        <div class="col-md-3 text-center p-3">
+                            <h6 class="text-muted">Profit Factor</h6>
+                            <h3 class="mb-0" id="metric-profit-factor">0.00</h3>
+                        </div>
+                        <div class="col-md-3 text-center p-3">
+                            <h6 class="text-muted">Max Drawdown</h6>
+                            <h3 class="mb-0 text-danger" id="metric-drawdown">0%</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Win/Loss Chart -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-pie-chart"></i> Win/Loss Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="winLossChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- P&L Distribution -->
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-bar-chart"></i> P&L Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="pnlChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let winLossChart = null;
+    let pnlChart = null;
+    
+    async function loadAnalytics() {
+        try {
+            const [statsResponse, tradesResponse] = await Promise.all([
+                auth.fetch('/api/stats'),
+                auth.fetch('/api/trades?limit=100')
+            ]);
+            
+            const stats = await statsResponse.json();
+            const tradesData = await tradesResponse.json();
+            
+            updateMetrics(stats.performance || {});
+            updateCharts(stats.performance || {}, tradesData.trades || []);
+        } catch (error) {
+            console.error('Error loading analytics:', error);
+        }
+    }
+    
+    function updateMetrics(perf) {
+        document.getElementById('metric-total-trades').textContent = perf.total_trades || 0;
+        
+        const winRate = perf.win_rate || 0;
+        const winRateEl = document.getElementById('metric-win-rate');
+        winRateEl.textContent = winRate.toFixed(1) + '%';
+        winRateEl.className = 'mb-0 ' + (winRate >= 50 ? 'text-success' : 'text-danger');
+        
+        document.getElementById('metric-profit-factor').textContent = (perf.profit_factor || 0).toFixed(2);
+        document.getElementById('metric-drawdown').textContent = (perf.max_drawdown || 0).toFixed(2) + '%';
+    }
+    
+    function updateCharts(perf, trades) {
+        // Win/Loss Pie Chart
+        const winLossCtx = document.getElementById('winLossChart').getContext('2d');
+        
+        if (winLossChart) {
+            winLossChart.destroy();
+        }
+        
+        winLossChart = new Chart(winLossCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Winning Trades', 'Losing Trades'],
+                datasets: [{
+                    data: [perf.winning_trades || 0, perf.losing_trades || 0],
+                    backgroundColor: ['#28a745', '#dc3545']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // P&L Distribution Chart
+        const pnlCtx = document.getElementById('pnlChart').getContext('2d');
+        
+        if (pnlChart) {
+            pnlChart.destroy();
+        }
+        
+        // Group trades by P&L ranges
+        const pnlRanges = {
+            'Loss > $10': 0,
+            'Loss $5-$10': 0,
+            'Loss $0-$5': 0,
+            'Profit $0-$5': 0,
+            'Profit $5-$10': 0,
+            'Profit > $10': 0
+        };
+        
+        trades.forEach(trade => {
+            const pnl = trade.pnl || 0;
+            if (pnl < -10) pnlRanges['Loss > $10']++;
+            else if (pnl < -5) pnlRanges['Loss $5-$10']++;
+            else if (pnl < 0) pnlRanges['Loss $0-$5']++;
+            else if (pnl <= 5) pnlRanges['Profit $0-$5']++;
+            else if (pnl <= 10) pnlRanges['Profit $5-$10']++;
+            else pnlRanges['Profit > $10']++;
+        });
+        
+        pnlChart = new Chart(pnlCtx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(pnlRanges),
+                datasets: [{
+                    label: 'Number of Trades',
+                    data: Object.values(pnlRanges),
+                    backgroundColor: [
+                        '#dc3545', '#e9967a', '#ffa500',
+                        '#90ee90', '#32cd32', '#28a745'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initial load
+    loadAnalytics();
+</script>
+{% endblock %}

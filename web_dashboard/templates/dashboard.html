@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+
+{% block title %}Dashboard - Trading Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Status Cards Row -->
+    <div class="row g-3 mb-4">
+        <!-- Bot Status Card -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-robot fs-1 text-primary"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Bot Status</h6>
+                            <h4 class="mb-0" id="bot-status">Loading...</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Balance Card -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-wallet2 fs-1 text-success"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Balance</h6>
+                            <h4 class="mb-0" id="balance-amount">$0.00</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Open Positions Card -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-bar-chart fs-1 text-info"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Open Positions</h6>
+                            <h4 class="mb-0" id="open-positions">0</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Total P&L Card -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-graph-up fs-1 text-warning"></i>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="text-muted mb-1">Total P&L</h6>
+                            <h4 class="mb-0" id="total-pnl">$0.00</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Control Panel Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-sliders"></i> Control Panel</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-success" id="btn-resume">
+                            <i class="bi bi-play-fill"></i> Resume Trading
+                        </button>
+                        <button class="btn btn-warning" id="btn-pause">
+                            <i class="bi bi-pause-fill"></i> Pause Trading
+                        </button>
+                        <button class="btn btn-danger" id="btn-emergency">
+                            <i class="bi bi-exclamation-triangle-fill"></i> Emergency Stop
+                        </button>
+                        <button class="btn btn-secondary ms-auto" id="btn-refresh">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Positions and Stats Row -->
+    <div class="row g-3">
+        <!-- Open Positions -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-check"></i> Open Positions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Pair</th>
+                                    <th>Side</th>
+                                    <th>Entry Price</th>
+                                    <th>Size</th>
+                                    <th>Current P&L</th>
+                                    <th>P&L %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-table">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">No open positions</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trading Statistics -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div id="stats-content">
+                        <p class="text-muted">Loading statistics...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let ws = null;
+    
+    // Connect to WebSocket
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+            document.getElementById('connection-status').innerHTML = 
+                '<i class="bi bi-circle-fill text-success"></i> Connected';
+            
+            // Send ping every 30 seconds
+            setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send('ping');
+                }
+            }, 30000);
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        };
+        
+        ws.onclose = () => {
+            console.log('WebSocket disconnected');
+            document.getElementById('connection-status').innerHTML = 
+                '<i class="bi bi-circle-fill text-danger"></i> Disconnected';
+            
+            // Reconnect after 5 seconds
+            setTimeout(connectWebSocket, 5000);
+        };
+    }
+    
+    function handleWebSocketMessage(data) {
+        if (data.type === 'status_change') {
+            loadStatus();
+        } else if (data.type === 'position_update') {
+            loadPositions();
+        } else if (data.type === 'emergency_stop') {
+            showNotification('Emergency Stop', data.message, 'danger');
+            loadAll();
+        }
+    }
+    
+    // Load all data
+    async function loadAll() {
+        await Promise.all([
+            loadStatus(),
+            loadBalance(),
+            loadPositions(),
+            loadStats()
+        ]);
+    }
+    
+    // Load bot status
+    async function loadStatus() {
+        try {
+            const response = await auth.fetch('/api/status');
+            const data = await response.json();
+            
+            const statusEl = document.getElementById('bot-status');
+            if (data.error) {
+                statusEl.textContent = 'Error';
+                statusEl.className = 'mb-0 text-danger';
+            } else {
+                const status = data.trading_enabled ? 'ACTIVE' : 'PAUSED';
+                statusEl.textContent = status;
+                statusEl.className = data.trading_enabled ? 'mb-0 text-success' : 'mb-0 text-warning';
+                
+                document.getElementById('open-positions').textContent = data.open_positions || 0;
+            }
+        } catch (error) {
+            console.error('Error loading status:', error);
+        }
+    }
+    
+    // Load balance
+    async function loadBalance() {
+        try {
+            const response = await auth.fetch('/api/balance');
+            const data = await response.json();
+            
+            // Extract balance from text (format: "Total Balance: $1234.56")
+            if (data.balance_text) {
+                const match = data.balance_text.match(/Total Balance:.*?\$([0-9,.]+)/);
+                if (match) {
+                    document.getElementById('balance-amount').textContent = '$' + match[1];
+                }
+            }
+        } catch (error) {
+            console.error('Error loading balance:', error);
+        }
+    }
+    
+    // Load positions
+    async function loadPositions() {
+        try {
+            const response = await auth.fetch('/api/positions');
+            const data = await response.json();
+            
+            const tbody = document.getElementById('positions-table');
+            
+            if (!data.positions || data.positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No open positions</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = data.positions.map(pos => `
+                <tr>
+                    <td>${pos.pair || 'N/A'}</td>
+                    <td><span class="badge bg-${pos.side === 'BUY' ? 'success' : 'danger'}">${pos.side}</span></td>
+                    <td>$${pos.entry_price?.toFixed(2) || '0.00'}</td>
+                    <td>${pos.position_size?.toFixed(4) || '0.0000'}</td>
+                    <td class="${(pos.pnl || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                        $${(pos.pnl || 0).toFixed(2)}
+                    </td>
+                    <td class="${(pos.pnl_percentage || 0) >= 0 ? 'text-success' : 'text-danger'}">
+                        ${(pos.pnl_percentage || 0).toFixed(2)}%
+                    </td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading positions:', error);
+        }
+    }
+    
+    // Load stats
+    async function loadStats() {
+        try {
+            const response = await auth.fetch('/api/stats');
+            const data = await response.json();
+            
+            const statsDiv = document.getElementById('stats-content');
+            const perf = data.performance || {};
+            
+            statsDiv.innerHTML = `
+                <div class="mb-2">
+                    <small class="text-muted">Total Trades</small>
+                    <div class="fw-bold">${perf.total_trades || 0}</div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Win Rate</small>
+                    <div class="fw-bold text-${(perf.win_rate || 0) >= 50 ? 'success' : 'danger'}">
+                        ${(perf.win_rate || 0).toFixed(1)}%
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Total P&L</small>
+                    <div class="fw-bold text-${(perf.total_pnl || 0) >= 0 ? 'success' : 'danger'}">
+                        $${(perf.total_pnl || 0).toFixed(2)}
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">Profit Factor</small>
+                    <div class="fw-bold">${(perf.profit_factor || 0).toFixed(2)}</div>
+                </div>
+            `;
+            
+            // Update total P&L in header
+            document.getElementById('total-pnl').textContent = '$' + (perf.total_pnl || 0).toFixed(2);
+            document.getElementById('total-pnl').className = 
+                'mb-0 ' + ((perf.total_pnl || 0) >= 0 ? 'text-success' : 'text-danger');
+        } catch (error) {
+            console.error('Error loading stats:', error);
+        }
+    }
+    
+    // Control actions
+    async function controlAction(action) {
+        try {
+            const response = await auth.fetch('/api/control', {
+                method: 'POST',
+                body: JSON.stringify({ action })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showNotification('Success', data.message, 'success');
+                loadAll();
+            } else {
+                showNotification('Error', data.message, 'danger');
+            }
+        } catch (error) {
+            showNotification('Error', 'Failed to execute action', 'danger');
+        }
+    }
+    
+    // Show notification
+    function showNotification(title, message, type = 'info') {
+        // Simple toast-like notification
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+        alert.style.zIndex = '9999';
+        alert.innerHTML = `
+            <strong>${title}</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.body.appendChild(alert);
+        
+        setTimeout(() => alert.remove(), 5000);
+    }
+    
+    // Event listeners
+    document.getElementById('btn-resume').addEventListener('click', () => controlAction('resume'));
+    document.getElementById('btn-pause').addEventListener('click', () => controlAction('pause'));
+    document.getElementById('btn-emergency').addEventListener('click', () => {
+        if (confirm('Are you sure you want to close all positions and stop trading?')) {
+            controlAction('emergency');
+        }
+    });
+    document.getElementById('btn-refresh').addEventListener('click', loadAll);
+    
+    // Initialize
+    connectWebSocket();
+    loadAll();
+    
+    // Auto-refresh every 10 seconds
+    setInterval(loadAll, 10000);
+</script>
+{% endblock %}

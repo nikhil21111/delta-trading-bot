@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% set show_nav = true %}
+
+{% block title %}Trade History - Trading Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul"></i> Trade History</h5>
+            <button class="btn btn-sm btn-light" id="btn-refresh">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Pair</th>
+                            <th>Side</th>
+                            <th>Entry Price</th>
+                            <th>Exit Price</th>
+                            <th>Size</th>
+                            <th>Leverage</th>
+                            <th>P&L</th>
+                            <th>P&L %</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-table">
+                        <tr>
+                            <td colspan="10" class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function loadTrades() {
+        try {
+            const response = await auth.fetch('/api/trades?limit=100');
+            const data = await response.json();
+            
+            const tbody = document.getElementById('trades-table');
+            
+            if (!data.trades || data.trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">No trades yet</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = data.trades.map(trade => {
+                const date = new Date(trade.timestamp);
+                const pnl = trade.pnl || 0;
+                const pnlPct = trade.pnl_percentage || 0;
+                
+                return `
+                    <tr>
+                        <td>${date.toLocaleString()}</td>
+                        <td>${trade.pair}</td>
+                        <td><span class="badge bg-${trade.side === 'BUY' ? 'success' : 'danger'}">${trade.side}</span></td>
+                        <td>$${trade.entry_price?.toFixed(2) || '0.00'}</td>
+                        <td>$${trade.exit_price?.toFixed(2) || '0.00'}</td>
+                        <td>${trade.size?.toFixed(4) || '0.0000'}</td>
+                        <td>${trade.leverage}x</td>
+                        <td class="${pnl >= 0 ? 'text-success' : 'text-danger'} fw-bold">
+                            ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}
+                        </td>
+                        <td class="${pnlPct >= 0 ? 'text-success' : 'text-danger'} fw-bold">
+                            ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%
+                        </td>
+                        <td><small>${trade.exit_reason || 'N/A'}</small></td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Error loading trades:', error);
+            document.getElementById('trades-table').innerHTML = 
+                '<tr><td colspan="10" class="text-center text-danger">Error loading trades</td></tr>';
+        }
+    }
+    
+    document.getElementById('btn-refresh').addEventListener('click', loadTrades);
+    
+    // Initial load
+    loadTrades();
+</script>
+{% endblock %}

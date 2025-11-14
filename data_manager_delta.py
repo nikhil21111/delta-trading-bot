@@ -81,6 +81,7 @@ class DataManagerDelta:
             
             if not product_id:
                 logger.error(f"Product not found: {symbol}")
+                logger.error(f"Available products: {[p.get('symbol') for p in (products or [])[:10]]}")
                 return None
             
             # Calculate time range
@@ -97,21 +98,37 @@ class DataManagerDelta:
                 'end': end_time
             }
             
+            logger.debug(f"Fetching candles: {endpoint} with params: {params}")
+            
             data = await self.exchange._public_request(endpoint, params)
             
-            if not data or 'result' not in data:
-                logger.error("No candle data received")
+            if not data:
+                logger.error("No response from Delta Exchange candles API")
+                return None
+            
+            # Check for API errors
+            if 'error' in data:
+                logger.error(f"Delta Exchange API error: {data['error']}")
+                logger.error(f"Full response: {data}")
+                return None
+            
+            if 'result' not in data:
+                logger.error(f"Unexpected response format from Delta Exchange: {list(data.keys())}")
+                logger.error(f"Full response: {data}")
                 return None
             
             # Parse candles
             candles = data['result']
             
-            if not candles:
-                logger.error("Empty candle data")
+            if not candles or len(candles) == 0:
+                logger.warning(f"No candles returned for {symbol} {timeframe} (limit: {limit})")
+                logger.warning(f"Time range: {datetime.fromtimestamp(start_time)} to {datetime.fromtimestamp(end_time)}")
                 return None
             
             # Convert to DataFrame
             df = pd.DataFrame(candles)
+            
+            logger.debug(f"Received candles with columns: {df.columns.tolist()}")
             
             # Rename columns to standard format
             df = df.rename(columns={
@@ -132,7 +149,8 @@ class DataManagerDelta:
             
             # Ensure numeric types
             for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
             
             logger.debug(f"Fetched {len(df)} candles for {symbol}")
             

@@ -20,6 +20,7 @@ from telegram_bot import telegram_notifier
 from paper_trading import PaperTrading
 from backtester import Backtester
 from monitor import monitor
+from bot_interface import bot_interface
 
 class TradingBot:
     """Main trading bot orchestrator"""
@@ -82,6 +83,9 @@ class TradingBot:
             # Set bot controller and start command handler
             telegram_notifier.set_bot_controller(self)
             await telegram_notifier.start_command_handler()
+        
+        # Set bot instance for web dashboard
+        bot_interface.set_bot(self)
 
         logger.info("✅ Bot initialized successfully")
         return True
